@@ -87,7 +87,7 @@ def get_subset(X, y, sample_size, seed):
 X_subset, y_subset = get_subset(X, y, sample_size, int(random_state_val))
 
 
-# 5. Mise en cache de l'algorithme t-SNE
+# 5. Mise en cache de l'algorithme t-SNE (Utilisation de max_iter au lieu de n_iter)
 @st.cache_data(show_spinner=False)
 def compute_tsne(X_sub, perplexity, learning_rate, random_state):
     """Exécute l'algorithme t-SNE de scikit-learn avec les hyperparamètres choisis."""
@@ -97,7 +97,7 @@ def compute_tsne(X_sub, perplexity, learning_rate, random_state):
         learning_rate=learning_rate,
         random_state=random_state,
         init="pca",
-        n_iter=1000,
+        max_iter=1000,  # Corrigé ici (max_iter au lieu de n_iter)
     )
     return tsne.fit_transform(X_sub)
 
