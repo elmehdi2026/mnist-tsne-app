@@ -17,7 +17,7 @@ st.markdown(
     """
     <div style="background: linear-gradient(135deg, #7c3aed 0%, #4f46e5 100%); color: white; padding: 25px; border-radius: 8px; text-align: center; margin-bottom: 25px;">
         <div style="font-size: 11pt; font-weight: 600; text-transform: uppercase; letter-spacing: 2px; opacity: 0.85;">EL MEHDI - Master IAENG</div>
-        <h1 style="margin: 10px 0 0 0; font-size: 24pt;">TP-t-SNE Ultra-Rapide</h1>
+        <h1 style="margin: 10px 0 0 0; font-size: 24pt;">TP-t-SNE</h1>
         <p style="margin: 5px 0 0 0; opacity: 0.9;">Réduction Non Linéaire & Visualisation des Clusters MNIST</p>
     </div>
 """,
