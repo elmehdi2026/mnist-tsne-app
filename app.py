@@ -158,7 +158,6 @@ st.markdown("---")
 st.markdown("### 💡 Analyse & Performance :")
 st.markdown(
     """
-* **Rapidité optimale :** Le champ aléatoire a été supprimé pour épargner l'interface et accélérer les rendus grâce au cache global.
 * **Échantillon flexible :** Vous pouvez descendre jusqu'à **500 échantillons** dans la barre latérale pour obtenir un affichage quasi instantané.
 """
 )
