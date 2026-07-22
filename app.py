@@ -24,16 +24,14 @@ st.markdown(
 # Chargement optimisé des données MNIST
 @st.cache_data
 def load_mnist_data():
-  mnist = fetch_openml("mnist_784", version=1, parser="auto")
-  X = mnist.data.astype("float32") / 255.0
-  y = mnist.target.astype("int")
-  return X, y
+    mnist = fetch_openml("mnist_784", version=1, parser="auto")
+    X = mnist.data.astype("float32") / 255.0
+    y = mnist.target.astype("int")
+    return X, y
 
 
-with st.spinner(
-    "Chargement du dataset MNIST en cours (veuillez patienter)..."
-):
-  X, y = load_mnist_data()
+with st.spinner("Chargement du dataset MNIST en cours (veuillez patienter)..."):
+    X, y = load_mnist_data()
 
 # Panneau de configuration (Sidebar)
 st.sidebar.header("Paramètres t-SNE")
@@ -59,13 +57,13 @@ y_subset = y.iloc[indices].values if hasattr(y, "iloc") else y[indices]
 # Application de l'algorithme t-SNE (intégré dans scikit-learn)
 st.subheader("1. Projection t-SNE en 2D")
 with st.spinner("Exécution de la projection t-SNE (calcul itératif)..."):
-  tsne = TSNE(
-      n_components=2,
-      perplexity=perplexity,
-      learning_rate=learning_rate,
-      random_state=42,
-  )
-  embedding = tsne.fit_transform(X_subset)
+    tsne = TSNE(
+        n_components=2,
+        perplexity=perplexity,
+        learning_rate=learning_rate,
+        random_state=42,
+    )
+    embedding = tsne.fit_transform(X_subset)
 
 # Affichage du graphique interactif Matplotlib avec anti-coupure (bbox_inches='tight')
 fig, ax = plt.subplots(figsize=(10, 7))
