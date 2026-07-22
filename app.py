@@ -1,19 +1,23 @@
 import matplotlib.pyplot as plt
 import numpy as np
+import pandas as pd
 import streamlit as st
 from sklearn.datasets import fetch_openml
 from sklearn.manifold import TSNE
 
-# Configuration de la page Streamlit
+# 1. Configuration de la page Streamlit
 st.set_page_config(
-    page_title="TP-tSNE MNIST", layout="centered", initial_sidebar_state="expanded"
+    page_title="TP-tSNE MNIST - EL MEHDI",
+    layout="centered",
+    initial_sidebar_state="expanded",
 )
 
+# En-tête personnalisé avec design soigné
 st.markdown(
     """
     <div style="background: linear-gradient(135deg, #7c3aed 0%, #4f46e5 100%); color: white; padding: 25px; border-radius: 8px; text-align: center; margin-bottom: 25px;">
         <div style="font-size: 11pt; font-weight: 600; text-transform: uppercase; letter-spacing: 2px; opacity: 0.85;">EL MEHDI - Master IAENG</div>
-        <h1 style="margin: 10px 0 0 0; font-size: 24pt;">TP-t-SNE</h1>
+        <h1 style="margin: 10px 0 0 0; font-size: 24pt;">TP-t-SNE Avancé</h1>
         <p style="margin: 5px 0 0 0; opacity: 0.9;">Réduction Non Linéaire & Visualisation des Clusters MNIST</p>
     </div>
 """,
@@ -21,80 +25,141 @@ st.markdown(
 )
 
 
-# Chargement optimisé des données MNIST
-@st.cache_data
+# 2. Chargement optimisé et sécurisé pour les accès simultanés
+@st.cache_data(show_spinner=False, persist="disk")
 def load_mnist_data():
+    """Charge et normalise le dataset MNIST une seule fois globalement."""
     mnist = fetch_openml("mnist_784", version=1, parser="auto")
-    X = mnist.data.astype("float32") / 255.0
-    y = mnist.target.astype("int")
+    X = mnist.data.astype(np.float32) / 255.0
+    if isinstance(X, pd.DataFrame):
+        X = X.to_numpy()
+
+    y = mnist.target.astype(np.int64)
+    if isinstance(y, pd.Series):
+        y = y.to_numpy()
+
     return X, y
 
 
-with st.spinner("Chargement du dataset MNIST en cours (veuillez patienter)..."):
-    X, y = load_mnist_data()
+# Chargement sécurisé avec indicateur
+try:
+    with st.spinner(
+        "Chargement initial du dataset MNIST (partagé & optimisé)..."
+    ):
+        X, y = load_mnist_data()
+except Exception as e:
+    st.error(f"Erreur critique lors du chargement des données OpenML : {e}")
+    st.stop()
 
-# Panneau de configuration (Sidebar)
+
+# 3. Panneau de configuration (Sidebar)
 st.sidebar.header("Paramètres t-SNE")
 sample_size = st.sidebar.slider(
     "Taille de l'échantillon (vitesse)",
     min_value=1000,
-    max_value=5000,
-    value=2500,
+    max_value=3000,
+    value=2000,
     step=500,
 )
 perplexity = st.sidebar.slider(
     "Perplexité (perplexity)", min_value=5, max_value=50, value=30
 )
 learning_rate = st.sidebar.slider(
-    "Taux d'apprentissage (learning_rate)", min_value=10, max_value=500, value=200
+    "Taux d'apprentissage (learning_rate)",
+    min_value=10,
+    max_value=500,
+    value=200,
+)
+random_state_val = st.sidebar.number_input(
+    "Graine aléatoire (Random State)", value=42, step=1
 )
 
-# Réduction d'échantillon pour fluidifier le calcul t-SNE
-indices = np.random.choice(len(X), sample_size, replace=False)
-X_subset = X.iloc[indices].values if hasattr(X, "iloc") else X[indices]
-y_subset = y.iloc[indices].values if hasattr(y, "iloc") else y[indices]
 
-# Application de l'algorithme t-SNE (intégré dans scikit-learn)
-st.subheader("1. Projection t-SNE en 2D")
-with st.spinner("Exécution de la projection t-SNE (calcul itératif)..."):
+# 4. Sous-échantillonnage reproductible et sécurisé
+@st.cache_data(show_spinner=False)
+def get_subset(X, y, sample_size, seed):
+    """Garantit un sous-échantillonnage stable pour un jeu de paramètres donné."""
+    np.random.seed(seed)
+    indices = np.random.choice(len(X), sample_size, replace=False)
+    return X[indices], y[indices]
+
+
+X_subset, y_subset = get_subset(X, y, sample_size, int(random_state_val))
+
+
+# 5. Mise en cache de l'algorithme t-SNE
+@st.cache_data(show_spinner=False)
+def compute_tsne(X_sub, perplexity, learning_rate, random_state):
+    """Exécute l'algorithme t-SNE de scikit-learn avec les hyperparamètres choisis."""
     tsne = TSNE(
         n_components=2,
         perplexity=perplexity,
         learning_rate=learning_rate,
-        random_state=42,
+        random_state=random_state,
+        init="pca",
+        n_iter=1000,
     )
-    embedding = tsne.fit_transform(X_subset)
+    return tsne.fit_transform(X_sub)
 
-# Affichage du graphique interactif Matplotlib avec anti-coupure (bbox_inches='tight')
-fig, ax = plt.subplots(figsize=(10, 7))
+
+# 6. Exécution et affichage de la projection
+st.subheader("1. Projection t-SNE en 2D")
+
+with st.spinner("Calcul itératif t-SNE en cours (patientez quelques secondes)..."):
+    try:
+        embedding = compute_tsne(
+            X_subset, perplexity, learning_rate, int(random_state_val)
+        )
+    except Exception as e:
+        st.error(f"Erreur durant l'exécution de t-SNE : {e}")
+        st.stop()
+
+# 7. Création du graphique Matplotlib haut de gamme
+fig, ax = plt.subplots(figsize=(10, 7), dpi=120)
 scatter = ax.scatter(
     embedding[:, 0],
     embedding[:, 1],
     c=y_subset,
     cmap="tab10",
-    s=10,
-    alpha=0.7,
+    s=12,
+    alpha=0.75,
+    edgecolors="none",
 )
+
+# Gestion propre de la légende externe
 legend = ax.legend(
     *scatter.legend_elements(),
     title="Chiffres",
     loc="upper right",
-    bbox_to_anchor=(1.25, 1),
+    bbox_to_anchor=(1.22, 1),
+    frameon=True,
+    facecolor="#f8fafc",
+    edgecolor="#cbd5e1",
 )
 ax.add_artist(legend)
+
 ax.set_title(
-    "Projection t-SNE des chiffres MNIST (Espace 2D)",
+    "Projection t-SNE des chiffres MNIST (Espace 2D non linéaire)",
     fontsize=12,
     fontweight="bold",
+    pad=15,
 )
-ax.set_xlabel("Dimension t-SNE 1")
-ax.set_ylabel("Dimension t-SNE 2")
-ax.grid(True, linestyle="--", alpha=0.5)
+ax.set_xlabel("Dimension t-SNE 1", fontsize=10)
+ax.set_ylabel("Dimension t-SNE 2", fontsize=10)
+ax.grid(True, linestyle="--", alpha=0.4)
+ax.spines["top"].set_visible(False)
+ax.spines["right"].set_visible(False)
 
+# Rendu Streamlit avec gestion anti-coupure
 st.pyplot(fig, bbox_inches="tight")
 
+# 8. Section explicative et pédagogique
 st.markdown("---")
-st.markdown("### 💡 Ce que montre ce graphique :")
+st.markdown("### 💡 Analyse & Interprétation :")
 st.markdown(
-    "- Le **t-SNE** convertit les proximités entre pixels de grande dimension en probabilités, créant des îlots (clusters) magnifiquement isolés pour chaque chiffre de 0 à 9."
+    """
+* **Séparation non linéaire :** Le **t-SNE** préserve les voisinages locaux, ce qui permet de détacher nettement chaque cluster de chiffre (de 0 à 9).
+* **Impact de la perplexité :** Ajuster ce paramètre modifie le compromis entre l'attention portée aux voisinages locaux vs. globaux de vos données.
+* **Optimisation Concurrente :** Grâce au mécanisme de cache intelligent (`st.cache_data`), l'application gère efficacement les accès multiples sans saturer la mémoire ni re-télécharger le dataset distant.
+"""
 )
