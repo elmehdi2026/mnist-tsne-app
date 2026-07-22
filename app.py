@@ -2,7 +2,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 import streamlit as st
-from sklearn.datasets import fetch_openml
+from sklearn.datasets import fetch_openml, load_digits
 from sklearn.manifold import TSNE
 
 # 1. Configuration de la page Streamlit
@@ -25,42 +25,57 @@ st.markdown(
 )
 
 
-# 2. Chargement optimisé et sécurisé pour les accès simultanés
-@st.cache_data(show_spinner=False, persist="disk")
+# 2. Chargement sécurisé avec repli anti-plantage réseau
+@st.cache_data(show_spinner=False)
 def load_mnist_data():
-    """Charge et normalise le dataset MNIST une seule fois globalement."""
-    mnist = fetch_openml("mnist_784", version=1, parser="auto")
-    X = mnist.data.astype(np.float32) / 255.0
-    if isinstance(X, pd.DataFrame):
-        X = X.to_numpy()
+    """Charge MNIST depuis OpenML avec une solution de secours locale (load_digits) en cas de panne réseau."""
+    try:
+        # Tentative de chargement du MNIST classique de scikit-learn
+        mnist = fetch_openml("mnist_784", version=1, parser="auto")
+        X = mnist.data.astype(np.float32) / 255.0
+        if isinstance(X, pd.DataFrame):
+            X = X.to_numpy()
 
-    y = mnist.target.astype(np.int64)
-    if isinstance(y, pd.Series):
-        y = y.to_numpy()
+        y = mnist.target.astype(np.int64)
+        if isinstance(y, pd.Series):
+            y = y.to_numpy()
+        return X, y
+    except Exception:
+        # Solution de repli ultra-fiable si OpenML est inaccessible
+        st.warning(
+            "⚠️ Impossible de contacter OpenML (réseau). Utilisation automatique du dataset de secours intégré `load_digits`."
+        )
+        digits = load_digits()
+        X = digits.data.astype(np.float32) / 16.0
+        y = digits.target.astype(np.int64)
+        return X, y
 
-    return X, y
 
-
-# Chargement sécurisé avec indicateur
+# Chargement sécurisé avec gestion d'état
 try:
-    with st.spinner(
-        "Chargement initial du dataset MNIST (partagé & optimisé)..."
-    ):
+    with st.spinner("Chargement des données en cours..."):
         X, y = load_mnist_data()
 except Exception as e:
-    st.error(f"Erreur critique lors du chargement des données OpenML : {e}")
+    st.error(f"Erreur critique lors de l'initialisation des données : {e}")
     st.stop()
 
 
 # 3. Panneau de configuration (Sidebar)
 st.sidebar.header("Paramètres t-SNE")
+
+# Adaptation automatique de la taille max si on bascule sur digits (qui fait 1797 lignes max)
+max_samples = min(len(X), 3000)
+min_samples = min(1000, max_samples)
+default_samples = min(2000, max_samples)
+
 sample_size = st.sidebar.slider(
     "Taille de l'échantillon (vitesse)",
-    min_value=1000,
-    max_value=3000,
-    value=2000,
-    step=500,
+    min_value=min_samples,
+    max_value=max_samples,
+    value=default_samples,
+    step=min(500, max(100, max_samples // 5)),
 )
+
 perplexity = st.sidebar.slider(
     "Perplexité (perplexity)", min_value=5, max_value=50, value=30
 )
@@ -78,26 +93,25 @@ random_state_val = st.sidebar.number_input(
 # 4. Sous-échantillonnage reproductible et sécurisé
 @st.cache_data(show_spinner=False)
 def get_subset(X, y, sample_size, seed):
-    """Garantit un sous-échantillonnage stable pour un jeu de paramètres donné."""
     np.random.seed(seed)
-    indices = np.random.choice(len(X), sample_size, replace=False)
+    actual_size = min(sample_size, len(X))
+    indices = np.random.choice(len(X), actual_size, replace=False)
     return X[indices], y[indices]
 
 
 X_subset, y_subset = get_subset(X, y, sample_size, int(random_state_val))
 
 
-# 5. Mise en cache de l'algorithme t-SNE (Utilisation de max_iter au lieu de n_iter)
+# 5. Mise en cache de l'algorithme t-SNE
 @st.cache_data(show_spinner=False)
 def compute_tsne(X_sub, perplexity, learning_rate, random_state):
-    """Exécute l'algorithme t-SNE de scikit-learn avec les hyperparamètres choisis."""
     tsne = TSNE(
         n_components=2,
         perplexity=perplexity,
         learning_rate=learning_rate,
         random_state=random_state,
         init="pca",
-        max_iter=1000,  # Corrigé ici (max_iter au lieu de n_iter)
+        max_iter=1000,
     )
     return tsne.fit_transform(X_sub)
 
@@ -160,6 +174,6 @@ st.markdown(
     """
 * **Séparation non linéaire :** Le **t-SNE** préserve les voisinages locaux, ce qui permet de détacher nettement chaque cluster de chiffre (de 0 à 9).
 * **Impact de la perplexité :** Ajuster ce paramètre modifie le compromis entre l'attention portée aux voisinages locaux vs. globaux de vos données.
-* **Optimisation Concurrente :** Grâce au mécanisme de cache intelligent (`st.cache_data`), l'application gère efficacement les accès multiples sans saturer la mémoire ni re-télécharger le dataset distant.
+* **Sécurité Anti-Panne :** L'application intègre un système de secours automatique pour contrer les coupures réseau potentielles du serveur OpenML.
 """
 )
